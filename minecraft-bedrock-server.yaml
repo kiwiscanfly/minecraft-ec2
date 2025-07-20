@@ -1,0 +1,323 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Minecraft Paper Server with BedrockConnect on EC2 using Docker'
+
+Mappings:
+  InstanceArchitecture:
+    t4g.small:
+      Architecture: arm64
+    t4g.medium:
+      Architecture: arm64
+    t4g.large:
+      Architecture: arm64
+    t3.small:
+      Architecture: x86_64
+    t3.medium:
+      Architecture: x86_64
+    t2.small:
+      Architecture: x86_64
+
+Parameters:
+  InstanceType:
+    Description: 'EC2 Instance type'
+    Type: String
+    Default: t4g.medium
+    AllowedValues:
+      - t2.small
+      - t4g.small
+      - t4g.medium
+      - t3.small
+      - t3.medium
+    ConstraintDescription: 'Must be a valid EC2 instance type'
+
+  KeyName:
+    Description: 'Name of existing EC2 KeyPair for SSH access'
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: 'Must be the name of an existing EC2 KeyPair'
+
+  SSHLocation:
+    Description: 'IP address range that can SSH to the EC2 instance'
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
+    ConstraintDescription: 'Must be a valid IP CIDR range'
+
+  LatestARM64AmiId:
+    Description: 'Latest Amazon Linux 2023 ARM64 AMI ID'
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-arm64'
+
+  LatestX86AmiId:
+    Description: 'Latest Amazon Linux 2023 x86_64 AMI ID'
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+
+Conditions:
+  IsARM64Instance: !Equals 
+    - !FindInMap [InstanceArchitecture, !Ref InstanceType, Architecture]
+    - arm64
+
+Resources:
+  # VPC Configuration
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VPC'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-IGW'
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-Public-Subnet'
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-Public-Routes'
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  # Security Group Configuration
+  MinecraftSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-Minecraft-SG'
+      GroupDescription: 'Security group for Minecraft server'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # SSH Access
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+          Description: 'SSH access'
+        # DNS (TCP)
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: 'DNS TCP'
+        # DNS (UDP)
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: 'DNS UDP'
+        # Minecraft Java Edition
+        - IpProtocol: tcp
+          FromPort: 25565
+          ToPort: 25565
+          CidrIp: 0.0.0.0/0
+          Description: 'Minecraft Java Edition'
+        # Minecraft Bedrock Edition (TCP)
+        - IpProtocol: tcp
+          FromPort: 19132
+          ToPort: 19132
+          CidrIp: 0.0.0.0/0
+          Description: 'Minecraft Bedrock TCP'
+        # Minecraft Bedrock Edition (UDP)
+        - IpProtocol: udp
+          FromPort: 19132
+          ToPort: 19133
+          CidrIp: 0.0.0.0/0
+          Description: 'Minecraft Bedrock UDP'
+        # Geyser Bedrock Port (UDP)
+        - IpProtocol: udp
+          FromPort: 19133
+          ToPort: 19133
+          CidrIp: 0.0.0.0/0
+          Description: 'Geyser Bedrock UDP'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: 'Allow all outbound traffic'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-Minecraft-SG'
+
+  # S3 Bucket for Minecraft World Backups
+  MinecraftBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-minecraft-backups-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldBackups
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpirationInDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-Minecraft-Backups'
+
+  # IAM Role for EC2
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-EC2-Role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: MinecraftBackupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt MinecraftBackupBucket.Arn
+                  - !Sub '${MinecraftBackupBucket.Arn}/*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-EC2-Role'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${AWS::StackName}-EC2-InstanceProfile'
+      Path: '/'
+      Roles:
+        - !Ref EC2Role
+
+  # EC2 Instance
+  MinecraftInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      ImageId: !If 
+        - IsARM64Instance
+        - !Ref LatestARM64AmiId
+        - !Ref LatestX86AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref MinecraftSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 20
+            DeleteOnTermination: true
+            Encrypted: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          
+          # Install basic dependencies
+          dnf install -y aws-cfn-bootstrap
+          
+          # Signal that basic infrastructure is ready
+          cfn-signal -e $? --stack ${AWS::StackName} --resource MinecraftInstance --region ${AWS::Region}
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-Minecraft-Server'
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+
+  # Elastic IP for consistent access
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-EIP'
+
+  # Elastic IP Association
+  ElasticIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref MinecraftInstance
+      EIP: !Ref ElasticIP
+
+Outputs:
+  InstanceId:
+    Description: 'EC2 Instance ID'
+    Value: !Ref MinecraftInstance
+
+  PublicIP:
+    Description: 'Public IP address of the server'
+    Value: !Ref ElasticIP
+
+  SSHCommand:
+    Description: 'SSH command to connect to the instance'
+    Value: !Sub 'ssh -i ${KeyName}.pem ec2-user@${ElasticIP}'
+
+  MinecraftJavaConnection:
+    Description: 'Minecraft Java Edition connection address'
+    Value: !Sub '${ElasticIP}:25565'
+
+  MinecraftBedrockConnection:
+    Description: 'Minecraft Bedrock Edition connection address'
+    Value: !Sub '${ElasticIP}:19132'
+
+  BedrockConnectDNS:
+    Description: 'DNS server to configure on Nintendo Switch'
+    Value: !Ref ElasticIP
+
+  BackupBucket:
+    Description: 'S3 bucket for Minecraft world backups'
+    Value: !Ref MinecraftBackupBucket

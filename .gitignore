@@ -1,0 +1,84 @@
+# AWS EC2 Key Pairs
+*.pem
+*.key
+
+# AWS Credentials and Config
+.aws/
+aws-credentials.txt
+credentials
+config
+
+# Environment Variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Terraform State (if used)
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars
+
+# CloudFormation Outputs
+stack-outputs.json
+deployment-info.txt
+
+# Logs
+*.log
+logs/
+
+# Backup Files
+*.backup
+*.bak
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js (if any scripts added)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if any scripts added)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+
+# Local Configuration Overrides
+config.local.yml
+docker-compose.override.yml
+.local/
+
+# SSH Keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# AWS CLI History
+.aws/cli/history
