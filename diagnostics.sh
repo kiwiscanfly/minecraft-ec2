@@ -3,30 +3,30 @@
 # Comprehensive Minecraft Server Diagnostic Script
 # Usage: ./diagnostics.sh [public-ip]
 
-# Function to load variables from .env.json
+# Function to load variables from .env.server.json
 load_env_json() {
-    if [ -f ".env.json" ]; then
-        export PUBLIC_IP=$(cat .env.json | grep -o '"PUBLIC_IP": *"[^"]*"' | cut -d'"' -f4)
-        export SSH_KEY=$(cat .env.json | grep -o '"KEY_NAME": *"[^"]*"' | cut -d'"' -f4).pem
-        export STACK_NAME=$(cat .env.json | grep -o '"STACK_NAME": *"[^"]*"' | cut -d'"' -f4)
-        export REGION=$(cat .env.json | grep -o '"REGION": *"[^"]*"' | cut -d'"' -f4)
+    if [ -f ".env.server.json" ]; then
+        export PUBLIC_IP=$(cat .env.server.json | grep -o '"PUBLIC_IP": *"[^"]*"' | cut -d'"' -f4)
+        export SSH_KEY=$(cat .env.server.json | grep -o '"KEY_NAME": *"[^"]*"' | cut -d'"' -f4).pem
+        export STACK_NAME=$(cat .env.server.json | grep -o '"STACK_NAME": *"[^"]*"' | cut -d'"' -f4)
+        export REGION=$(cat .env.server.json | grep -o '"REGION": *"[^"]*"' | cut -d'"' -f4)
     fi
 }
 
-# Try to get PUBLIC_IP from parameter or .env.json
+# Try to get PUBLIC_IP from parameter or .env.server.json
 PUBLIC_IP="${1}"
 if [ -z "$PUBLIC_IP" ]; then
     load_env_json
     if [ -z "$PUBLIC_IP" ]; then
         echo "Usage: $0 <public-ip>"
         echo "Example: $0 12.34.56.78"
-        echo "Or ensure .env.json exists from a previous deployment"
+        echo "Or ensure .env.server.json exists from a previous deployment"
         exit 1
     fi
-    echo "📋 Using PUBLIC_IP from .env.json: $PUBLIC_IP"
+    echo "📋 Using PUBLIC_IP from .env.server.json: $PUBLIC_IP"
 fi
 
-# Set SSH key (from .env.json or default)
+# Set SSH key (from .env.server.json or default)
 if [ -z "$SSH_KEY" ]; then
     SSH_KEY="minecraft-sydney-key.pem"
 fi

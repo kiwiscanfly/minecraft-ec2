@@ -9,19 +9,19 @@ set -e
 # Disable AWS CLI pager to prevent vi sessions
 export AWS_PAGER=""
 
-# Function to load variables from .env.json
+# Function to load variables from .env.server.json
 load_env_json() {
-    if [ -f ".env.json" ]; then
-        export STACK_NAME_FROM_JSON=$(cat .env.json | grep -o '"STACK_NAME": *"[^"]*"' | cut -d'"' -f4)
-        export REGION_FROM_JSON=$(cat .env.json | grep -o '"REGION": *"[^"]*"' | cut -d'"' -f4)
-        export KEY_NAME_FROM_JSON=$(cat .env.json | grep -o '"KEY_NAME": *"[^"]*"' | cut -d'"' -f4)
+    if [ -f ".env.server.json" ]; then
+        export STACK_NAME_FROM_JSON=$(cat .env.server.json | grep -o '"STACK_NAME": *"[^"]*"' | cut -d'"' -f4)
+        export REGION_FROM_JSON=$(cat .env.server.json | grep -o '"REGION": *"[^"]*"' | cut -d'"' -f4)
+        export KEY_NAME_FROM_JSON=$(cat .env.server.json | grep -o '"KEY_NAME": *"[^"]*"' | cut -d'"' -f4)
     fi
 }
 
-# Load from .env.json if available
+# Load from .env.server.json if available
 load_env_json
 
-# Use parameters or .env.json values or defaults
+# Use parameters or .env.server.json values or defaults
 STACK_NAME=${1:-${STACK_NAME_FROM_JSON:-minecraft-sydney}}
 REGION=${2:-${REGION_FROM_JSON:-ap-southeast-2}}
 KEY_NAME=${3:-${KEY_NAME_FROM_JSON:-minecraft-sydney-key}}
@@ -82,15 +82,15 @@ else
     echo "🔑 Key pair $KEY_NAME preserved"
 fi
 
-# Clean up .env.json if it exists
-if [ -f ".env.json" ]; then
+# Clean up .env.server.json if it exists
+if [ -f ".env.server.json" ]; then
     echo ""
-    read -p "🗑️  Delete .env.json file? (y/N): " delete_env
+    read -p "🗑️  Delete .env.server.json file? (y/N): " delete_env
     if [[ $delete_env =~ ^[Yy]$ ]]; then
-        rm .env.json
-        echo "✅ .env.json file deleted"
+        rm .env.server.json
+        echo "✅ .env.server.json file deleted"
     else
-        echo "📋 .env.json file preserved"
+        echo "📋 .env.server.json file preserved"
     fi
 fi
 

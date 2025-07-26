@@ -13,7 +13,7 @@ Complete infrastructure setup for running a Minecraft Paper server with BedrockC
 
 2. **Check server status:**
    ```bash
-   ./diagnostics.sh [PUBLIC_IP]  # IP auto-detected from .env.json if omitted
+   ./diagnostics.sh [PUBLIC_IP]  # IP auto-detected from .env.server.json if omitted
    ```
 
 3. **Destroy all resources:**
@@ -44,13 +44,15 @@ minecraft-ec2/
 ├── backup-world.sh                  # Manual backup script
 ├── restore-world.sh                 # Backup restoration script
 ├── setup-auto-backup.sh             # Automated backup configuration
-├── .env.json                        # Auto-generated deployment variables (not committed)
+├── configure-world.sh               # World configuration script
+├── .env.server.json                 # Auto-generated deployment variables (not committed)
+├── .env.world.json                  # World configuration settings (not committed)
 └── spec.md                          # Detailed specification
 ```
 
-### .env.json Auto-Configuration
+### .env.server.json Auto-Configuration
 
-After running `./deploy.sh`, a `.env.json` file is automatically created with deployment variables:
+After running `./deploy.sh`, a `.env.server.json` file is automatically created with deployment variables:
 
 ```json
 {
@@ -69,6 +71,54 @@ After running `./deploy.sh`, a `.env.json` file is automatically created with de
 - No need to remember or lookup deployment details
 - Simplifies running diagnostics and maintenance commands
 - File is automatically excluded from git commits
+
+### .env.world.json World Configuration
+
+Configure your Minecraft world settings using the world configuration file:
+
+```bash
+# Create world configuration from example template
+cp .env.world.json.example .env.world.json
+
+# Or create/edit world configuration interactively
+./configure-world.sh --interactive
+
+# Quick mode switches
+./configure-world.sh --creative      # Switch to creative mode
+./configure-world.sh --survival      # Switch to survival mode
+
+# Reset to defaults (copies from .env.world.json.example)
+./configure-world.sh --reset
+```
+
+**Example .env.world.json:**
+```json
+{
+  "world": {
+    "name": "My Creative Server",
+    "mode": "creative",
+    "difficulty": "normal",
+    "max_players": 20,
+    "view_distance": 10,
+    "motd": "Welcome to my server!",
+    "allow_flight": true,
+    "enable_command_blocks": true
+  },
+  "geyser": {
+    "server_name": "My Server",
+    "motd1": "Cross-Platform",
+    "motd2": "Minecraft Server"
+  }
+}
+```
+
+**World Settings Include:**
+- Server name (appears in BedrockConnect list)
+- Game mode (survival, creative, adventure, spectator)
+- Difficulty level
+- Player limits and view distances  
+- PvP, flight, and command block settings
+- Geyser configuration for Bedrock players
 
 ## 🏗️ Architecture
 
@@ -154,13 +204,13 @@ aws cloudformation describe-stacks --stack-name minecraft-sydney --region ap-sou
 ### Monitoring
 ```bash
 # Run comprehensive diagnostics from your local machine
-./diagnostics.sh [PUBLIC_IP]    # IP auto-detected from .env.json if omitted
+./diagnostics.sh [PUBLIC_IP]    # IP auto-detected from .env.server.json if omitted
 
 # Watch DNS queries in real-time
-./watch-dns.sh [PUBLIC_IP]      # IP auto-detected from .env.json if omitted
+./watch-dns.sh [PUBLIC_IP]      # IP auto-detected from .env.server.json if omitted
 
 # Update DNS configuration if needed
-./update-dns.sh [PUBLIC_IP]     # IP auto-detected from .env.json if omitted
+./update-dns.sh [PUBLIC_IP]     # IP auto-detected from .env.server.json if omitted
 ```
 
 ### Backup Management (via SSH)

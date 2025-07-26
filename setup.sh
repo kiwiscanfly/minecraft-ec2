@@ -13,10 +13,84 @@ if [ -z "$PUBLIC_IP" ] || [ -z "$STACK_NAME" ] || [ -z "$REGION" ]; then
     exit 1
 fi
 
+# Function to load world configuration from .env.world.json
+load_world_config() {
+    # Check for .env.world.json, fallback to example, or use defaults
+    if [ -f ".env.world.json" ]; then
+        echo "📋 Loading world configuration from .env.world.json"
+        CONFIG_FILE=".env.world.json"
+    elif [ -f ".env.world.json.example" ]; then
+        echo "📋 Loading world configuration from .env.world.json.example (using defaults)"
+        CONFIG_FILE=".env.world.json.example"
+    else
+        echo "⚠️  No world configuration found, using built-in defaults"
+        CONFIG_FILE=""
+    fi
+    
+    if [ -n "$CONFIG_FILE" ]; then
+        
+        # Extract world configuration values
+        export WORLD_NAME=$(cat "$CONFIG_FILE" | grep -o '"name": *"[^"]*"' | head -1 | cut -d'"' -f4)
+        export WORLD_MODE=$(cat "$CONFIG_FILE" | grep -o '"mode": *"[^"]*"' | cut -d'"' -f4)
+        export WORLD_DIFFICULTY=$(cat "$CONFIG_FILE" | grep -o '"difficulty": *"[^"]*"' | cut -d'"' -f4)
+        export WORLD_MAX_PLAYERS=$(cat "$CONFIG_FILE" | grep -o '"max_players": *[0-9]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_VIEW_DISTANCE=$(cat "$CONFIG_FILE" | grep -o '"view_distance": *[0-9]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_SIMULATION_DISTANCE=$(cat "$CONFIG_FILE" | grep -o '"simulation_distance": *[0-9]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_MOTD=$(cat "$CONFIG_FILE" | grep -o '"motd": *"[^"]*"' | cut -d'"' -f4)
+        export WORLD_PVP=$(cat "$CONFIG_FILE" | grep -o '"pvp": *[a-z]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_ENABLE_COMMAND_BLOCKS=$(cat "$CONFIG_FILE" | grep -o '"enable_command_blocks": *[a-z]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_SPAWN_PROTECTION=$(cat "$CONFIG_FILE" | grep -o '"spawn_protection": *[0-9]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_HARDCORE=$(cat "$CONFIG_FILE" | grep -o '"hardcore": *[a-z]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_ALLOW_FLIGHT=$(cat "$CONFIG_FILE" | grep -o '"allow_flight": *[a-z]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_ALLOW_NETHER=$(cat "$CONFIG_FILE" | grep -o '"allow_nether": *[a-z]*' | cut -d':' -f2 | tr -d ' ')
+        export WORLD_LEVEL_TYPE=$(cat "$CONFIG_FILE" | grep -o '"level_type": *"[^"]*"' | cut -d'"' -f4)
+        export WORLD_LEVEL_SEED=$(cat "$CONFIG_FILE" | grep -o '"level_seed": *"[^"]*"' | cut -d'"' -f4)
+        
+        # Geyser configuration
+        export GEYSER_SERVER_NAME=$(cat "$CONFIG_FILE" | grep -o '"server_name": *"[^"]*"' | cut -d'"' -f4)
+        export GEYSER_MOTD1=$(cat "$CONFIG_FILE" | grep -o '"motd1": *"[^"]*"' | cut -d'"' -f4)
+        export GEYSER_MOTD2=$(cat "$CONFIG_FILE" | grep -o '"motd2": *"[^"]*"' | cut -d'"' -f4)
+        
+        # BedrockConnect configuration
+        export BC_ICON_URL=$(cat "$CONFIG_FILE" | grep -o '"icon_url": *"[^"]*"' | cut -d'"' -f4)
+        
+    else
+        echo "⚠️  No world configuration files found (.env.world.json or .env.world.json.example)"
+        echo "Using minimal built-in defaults - consider creating .env.world.json.example"
+        # Minimal fallback defaults
+        export WORLD_NAME="My Minecraft Server"
+        export WORLD_MODE="survival"
+        export WORLD_DIFFICULTY="normal"
+        export WORLD_MAX_PLAYERS=20
+        export WORLD_VIEW_DISTANCE=10
+        export WORLD_SIMULATION_DISTANCE=8
+        export WORLD_MOTD="Paper Server with BedrockConnect"
+        export WORLD_PVP="true"
+        export WORLD_ENABLE_COMMAND_BLOCKS="false"
+        export WORLD_SPAWN_PROTECTION=16
+        export WORLD_HARDCORE="false"
+        export WORLD_ALLOW_FLIGHT="false"
+        export WORLD_ALLOW_NETHER="true"
+        export WORLD_LEVEL_TYPE="minecraft:normal"
+        export WORLD_LEVEL_SEED=""
+        export GEYSER_SERVER_NAME="Geyser"
+        export GEYSER_MOTD1="Geyser"
+        export GEYSER_MOTD2="Minecraft Server"
+        export BC_ICON_URL=""
+    fi
+}
+
+# Load world configuration
+load_world_config
+
 echo "Setting up Minecraft server with:"
 echo "  Public IP: $PUBLIC_IP"
 echo "  Stack Name: $STACK_NAME"
 echo "  Region: $REGION"
+echo "  World Name: $WORLD_NAME"
+echo "  Mode: $WORLD_MODE"
+echo "  Difficulty: $WORLD_DIFFICULTY"
+echo "  Max Players: $WORLD_MAX_PLAYERS"
 
 # Update system
 echo "📦 Updating system packages..."
@@ -99,12 +173,20 @@ services:
         -XX:G1MixedGCLiveThresholdPercent=90
         -XX:G1RSetUpdatingPauseTimePercent=5
         -XX:+PerfDisableSharedMem
-      MOTD: "Paper Server with BedrockConnect"
-      MODE: "survival"
-      DIFFICULTY: "normal"
-      MAX_PLAYERS: 20
-      VIEW_DISTANCE: 10
-      SIMULATION_DISTANCE: 8
+      MOTD: "$WORLD_MOTD"
+      MODE: "$WORLD_MODE"
+      DIFFICULTY: "$WORLD_DIFFICULTY"
+      MAX_PLAYERS: $WORLD_MAX_PLAYERS
+      VIEW_DISTANCE: $WORLD_VIEW_DISTANCE
+      SIMULATION_DISTANCE: $WORLD_SIMULATION_DISTANCE
+      PVP: "$WORLD_PVP"
+      ENABLE_COMMAND_BLOCK: "$WORLD_ENABLE_COMMAND_BLOCKS"
+      SPAWN_PROTECTION: $WORLD_SPAWN_PROTECTION
+      HARDCORE: "$WORLD_HARDCORE"
+      ALLOW_FLIGHT: "$WORLD_ALLOW_FLIGHT"
+      ALLOW_NETHER: "$WORLD_ALLOW_NETHER"
+      LEVEL_TYPE: "$WORLD_LEVEL_TYPE"
+      SEED: "$WORLD_LEVEL_SEED"
       PLUGINS: |
         https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
         https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
@@ -200,8 +282,8 @@ mkdir -p /opt/minecraft/bedrock-config
 cat > /opt/minecraft/bedrock-config/serverlist.json << EOF
 [
   {
-    "name": "My Minecraft Server",
-    "iconUrl": "",
+    "name": "$WORLD_NAME",
+    "iconUrl": "$BC_ICON_URL",
     "address": "$PUBLIC_IP",
     "port": 19133
   }
@@ -284,14 +366,14 @@ EOF
 
 # Create Geyser config
 mkdir -p /opt/minecraft/plugins/Geyser-Spigot
-cat > /opt/minecraft/plugins/Geyser-Spigot/config.yml << 'EOF'
+cat > /opt/minecraft/plugins/Geyser-Spigot/config.yml << EOF
 bedrock:
   address: 0.0.0.0
   port: 19132
   clone-remote-port: false
-  motd1: "Geyser"
-  motd2: "Minecraft Server"
-  server-name: "Geyser"
+  motd1: "$GEYSER_MOTD1"
+  motd2: "$GEYSER_MOTD2"
+  server-name: "$GEYSER_SERVER_NAME"
 
 remote:
   address: auto

@@ -97,9 +97,9 @@ PUBLIC_IP=$(aws cloudformation describe-stacks \
     --output text \
     --region "$REGION")
 
-# Create .env.json file with deployment variables
-echo "📝 Creating .env.json with deployment variables..."
-cat > .env.json << EOF
+# Create .env.server.json file with deployment variables
+echo "📝 Creating .env.server.json with deployment variables..."
+cat > .env.server.json << EOF
 {
   "STACK_NAME": "$STACK_NAME",
   "KEY_NAME": "$KEY_NAME",
@@ -110,11 +110,22 @@ cat > .env.json << EOF
   "DEPLOYED_AT": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 }
 EOF
-echo "✅ Created .env.json with deployment variables"
+echo "✅ Created .env.server.json with deployment variables"
 
-# Upload and run the setup script on the server
+# Upload setup script and configuration files to the server
 echo "📤 Uploading setup script to server..."
 scp -i "${KEY_NAME}.pem" -o StrictHostKeyChecking=no setup.sh ec2-user@"$PUBLIC_IP":~/
+
+# Upload world configuration if it exists
+if [ -f ".env.world.json" ]; then
+    echo "📤 Uploading world configuration (.env.world.json)..."
+    scp -i "${KEY_NAME}.pem" -o StrictHostKeyChecking=no .env.world.json ec2-user@"$PUBLIC_IP":~/
+elif [ -f ".env.world.json.example" ]; then
+    echo "📤 Uploading example world configuration (.env.world.json.example)..."
+    scp -i "${KEY_NAME}.pem" -o StrictHostKeyChecking=no .env.world.json.example ec2-user@"$PUBLIC_IP":~/
+else
+    echo "⚠️  No world configuration found - server will use built-in defaults"
+fi
 
 echo "🔧 Running Minecraft setup script on server..."
 if ssh -i "${KEY_NAME}.pem" -o ConnectTimeout=30 -o StrictHostKeyChecking=no ec2-user@"$PUBLIC_IP" "sudo ./setup.sh $PUBLIC_IP $STACK_NAME $REGION"; then
