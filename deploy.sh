@@ -97,6 +97,21 @@ PUBLIC_IP=$(aws cloudformation describe-stacks \
     --output text \
     --region "$REGION")
 
+# Create .env.json file with deployment variables
+echo "📝 Creating .env.json with deployment variables..."
+cat > .env.json << EOF
+{
+  "STACK_NAME": "$STACK_NAME",
+  "KEY_NAME": "$KEY_NAME",
+  "INSTANCE_TYPE": "$INSTANCE_TYPE",
+  "REGION": "$REGION",
+  "SSH_LOCATION": "$SSH_LOCATION",
+  "PUBLIC_IP": "$PUBLIC_IP",
+  "DEPLOYED_AT": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+echo "✅ Created .env.json with deployment variables"
+
 # Upload and run the setup script on the server
 echo "📤 Uploading setup script to server..."
 scp -i "${KEY_NAME}.pem" -o StrictHostKeyChecking=no setup.sh ec2-user@"$PUBLIC_IP":~/

@@ -13,7 +13,7 @@ Complete infrastructure setup for running a Minecraft Paper server with BedrockC
 
 2. **Check server status:**
    ```bash
-   ./diagnostics.sh [PUBLIC_IP]
+   ./diagnostics.sh [PUBLIC_IP]  # IP auto-detected from .env.json if omitted
    ```
 
 3. **Destroy all resources:**
@@ -44,8 +44,31 @@ minecraft-ec2/
 ├── backup-world.sh                  # Manual backup script
 ├── restore-world.sh                 # Backup restoration script
 ├── setup-auto-backup.sh             # Automated backup configuration
+├── .env.json                        # Auto-generated deployment variables (not committed)
 └── spec.md                          # Detailed specification
 ```
+
+### .env.json Auto-Configuration
+
+After running `./deploy.sh`, a `.env.json` file is automatically created with deployment variables:
+
+```json
+{
+  "STACK_NAME": "minecraft-sydney",
+  "KEY_NAME": "minecraft-sydney-key", 
+  "INSTANCE_TYPE": "t4g.medium",
+  "REGION": "ap-southeast-2",
+  "SSH_LOCATION": "0.0.0.0/0",
+  "PUBLIC_IP": "52.63.189.233",
+  "DEPLOYED_AT": "2024-07-26T20:15:30Z"
+}
+```
+
+**Benefits:**
+- Scripts automatically detect server IP and credentials
+- No need to remember or lookup deployment details
+- Simplifies running diagnostics and maintenance commands
+- File is automatically excluded from git commits
 
 ## 🏗️ Architecture
 
@@ -131,13 +154,13 @@ aws cloudformation describe-stacks --stack-name minecraft-sydney --region ap-sou
 ### Monitoring
 ```bash
 # Run comprehensive diagnostics from your local machine
-./diagnostics.sh 12.34.56.78
+./diagnostics.sh [PUBLIC_IP]    # IP auto-detected from .env.json if omitted
 
 # Watch DNS queries in real-time
-./watch-dns.sh 12.34.56.78
+./watch-dns.sh [PUBLIC_IP]      # IP auto-detected from .env.json if omitted
 
 # Update DNS configuration if needed
-./update-dns.sh 12.34.56.78
+./update-dns.sh [PUBLIC_IP]     # IP auto-detected from .env.json if omitted
 ```
 
 ### Backup Management (via SSH)

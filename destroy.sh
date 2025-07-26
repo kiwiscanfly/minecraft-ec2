@@ -9,10 +9,22 @@ set -e
 # Disable AWS CLI pager to prevent vi sessions
 export AWS_PAGER=""
 
-# Default values (configured for Sydney deployment)
-STACK_NAME=${1:-minecraft-sydney}
-REGION=${2:-ap-southeast-2}
-KEY_NAME=${3:-minecraft-sydney-key}
+# Function to load variables from .env.json
+load_env_json() {
+    if [ -f ".env.json" ]; then
+        export STACK_NAME_FROM_JSON=$(cat .env.json | grep -o '"STACK_NAME": *"[^"]*"' | cut -d'"' -f4)
+        export REGION_FROM_JSON=$(cat .env.json | grep -o '"REGION": *"[^"]*"' | cut -d'"' -f4)
+        export KEY_NAME_FROM_JSON=$(cat .env.json | grep -o '"KEY_NAME": *"[^"]*"' | cut -d'"' -f4)
+    fi
+}
+
+# Load from .env.json if available
+load_env_json
+
+# Use parameters or .env.json values or defaults
+STACK_NAME=${1:-${STACK_NAME_FROM_JSON:-minecraft-sydney}}
+REGION=${2:-${REGION_FROM_JSON:-ap-southeast-2}}
+KEY_NAME=${3:-${KEY_NAME_FROM_JSON:-minecraft-sydney-key}}
 
 echo "💥 DESTROYING Minecraft Server Infrastructure..."
 echo "Stack Name: $STACK_NAME"
@@ -68,6 +80,18 @@ if [[ $delete_key =~ ^[Yy]$ ]]; then
     fi
 else
     echo "🔑 Key pair $KEY_NAME preserved"
+fi
+
+# Clean up .env.json if it exists
+if [ -f ".env.json" ]; then
+    echo ""
+    read -p "🗑️  Delete .env.json file? (y/N): " delete_env
+    if [[ $delete_env =~ ^[Yy]$ ]]; then
+        rm .env.json
+        echo "✅ .env.json file deleted"
+    else
+        echo "📋 .env.json file preserved"
+    fi
 fi
 
 echo ""
