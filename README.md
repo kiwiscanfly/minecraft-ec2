@@ -1,34 +1,74 @@
 # Minecraft Paper Server with BedrockConnect on AWS EC2
 
-⚠️ **Work In Progress** - Nintendo Switch connectivity is not yet fully functional.
+[![AWS](https://img.shields.io/badge/AWS-EC2-orange.svg)](https://aws.amazon.com/ec2/)
+[![Minecraft](https://img.shields.io/badge/Minecraft-Paper%201.21.8-green.svg)](https://papermc.io/)
+[![BedrockConnect](https://img.shields.io/badge/BedrockConnect-Cross--Platform-blue.svg)](https://github.com/Pugmatt/BedrockConnect)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Complete infrastructure setup for running a Minecraft Paper server with BedrockConnect support, enabling Nintendo Switch and other Bedrock clients to connect to Java Edition servers.
+**Complete AWS infrastructure for running a Minecraft Paper server with BedrockConnect support, enabling cross-platform gameplay between Java and Bedrock editions.**
+
+## ✨ Features
+
+- 🏗️ **One-click AWS deployment** with CloudFormation
+- 🎮 **Cross-platform support** - Java Edition + Bedrock/Nintendo Switch via BedrockConnect  
+- 🛡️ **Production-ready security** with restricted security groups and monitoring
+- 📊 **CloudWatch monitoring** with custom dashboard and alerts
+- 🌍 **Easy world management** with live configuration updates
+- 🔄 **Automated backups** to S3 with lifecycle management
+- 💰 **Cost-optimized** for personal/small group usage (~$30/month)
+- 🔧 **Infrastructure as Code** - fully reproducible deployments
 
 ## 🚀 Quick Start
 
-1. **Deploy the server:**
-   ```bash
-   ./deploy.sh
-   ```
+### Prerequisites
+- AWS CLI configured with appropriate permissions
+- An existing EC2 Key Pair (or script will create one)
+- `git`, `ssh`, and `scp` installed locally
 
-2. **Check server status:**
-   ```bash
-   ./diagnostics.sh [PUBLIC_IP]  # IP auto-detected from .env.server.json if omitted
-   ```
+### Deployment
+```bash
+# Clone the repository
+git clone https://github.com/kiwiscanfly/minecraft-ec2.git
+cd minecraft-ec2
 
-3. **Destroy all resources:**
-   ```bash
-   ./destroy.sh
-   ```
+# Deploy the server (takes ~10 minutes)
+./deploy.sh
 
-## 🚨 Current Status
+# Configure your world (optional)
+./configure-world.sh --interactive
 
-- ✅ Infrastructure deploys successfully
-- ✅ All Docker containers start
-- ✅ Java Edition connections work
-- ❌ Nintendo Switch connections via BedrockConnect (debugging in progress)
-- ✅ Automated backups configured
-- ✅ Monitoring and diagnostics functional
+# Check server status
+./diagnostics.sh
+```
+
+### Nintendo Switch Setup
+1. Go to System Settings → Internet → Internet Settings
+2. Select your WiFi → Change Settings → DNS Settings → Manual  
+3. Set Primary DNS to your server's public IP
+4. Set Secondary DNS to 8.8.8.8
+5. Launch Minecraft → Servers → Connect to any Featured Server
+6. Your custom server will appear in the list!
+
+## 🎯 What's Included
+
+### Infrastructure
+- AWS EC2 instance with optimized networking (VPC, subnets, security groups)
+- CloudFormation template for reproducible deployments
+- CloudWatch monitoring with custom dashboard and alerts
+- S3 bucket for automated world backups
+- Elastic IP for consistent server access
+
+### Minecraft Server Stack
+- **Paper Server** - High-performance Minecraft Java Edition server
+- **Geyser** - Protocol translation for Bedrock/Java cross-play
+- **BedrockConnect** - Nintendo Switch connection via DNS redirection
+- **Floodgate** - UUID linking between Java and Bedrock players
+
+### Management Tools
+- Live configuration updates (game mode, difficulty, etc.)
+- Comprehensive diagnostics and monitoring scripts  
+- Automated backup and restore functionality
+- Real-time DNS query monitoring for troubleshooting
 
 ## 📁 Project Structure
 
@@ -265,28 +305,43 @@ sudo tail /var/log/cron
 
 ## 🛠️ Troubleshooting
 
-### Known Issues
-
-1. **Nintendo Switch can't connect (WIP)**
-   - BedrockConnect shows transfer but connection doesn't reach Minecraft server
-   - Currently debugging Geyser/BedrockConnect communication
-   - Temporary workaround: None yet
-
 ### Common Issues
 
-1. **Server not responding**
-   - Run `./diagnostics.sh [PUBLIC_IP]` for comprehensive check
-   - Wait 5-10 minutes for initial setup
-   - Check container logs: `docker logs minecraft-paper`
+**Server not responding:**
+```bash
+# Run comprehensive diagnostics
+./diagnostics.sh
 
-2. **Setup script fails**
-   - Ensure you're running with sudo: `sudo ./setup.sh`
-   - Check if services are already running
-   - Script is idempotent - safe to rerun
+# Check if all containers are running
+ssh -i your-key.pem ec2-user@SERVER_IP 'docker ps'
 
-3. **DNS resolution issues**
-   - Use `./diagnostics.sh` to check DNS functionality
-   - Verify security groups allow UDP/TCP port 53
+# View server logs
+ssh -i your-key.pem ec2-user@SERVER_IP 'docker logs minecraft-paper'
+```
+
+**Nintendo Switch connection issues:**
+```bash
+# Test DNS redirection
+nslookup mco.lbsg.net YOUR_SERVER_IP
+
+# Monitor DNS queries in real-time
+./watch-dns.sh
+
+# Restart BedrockConnect if needed
+ssh -i your-key.pem ec2-user@SERVER_IP 'docker restart bedrock-connect'
+```
+
+**Deployment failures:**
+- Ensure AWS CLI is configured: `aws sts get-caller-identity`
+- Check CloudFormation console for detailed error messages
+- Verify you have sufficient IAM permissions for EC2, VPC, and CloudFormation
+
+### Getting Help
+
+1. Run `./diagnostics.sh` and check the generated report
+2. Review CloudWatch logs via the dashboard (see outputs)
+3. Check [Issues](https://github.com/kiwiscanfly/minecraft-ec2/issues) for known problems
+4. Create a new issue with diagnostic output if needed
 
 ### Performance Tuning
 
@@ -311,10 +366,24 @@ Adjust `VIEW_DISTANCE` and `SIMULATION_DISTANCE` in docker-compose.yml for perfo
 
 This provides a seamless experience where Nintendo Switch users only see your server in the Featured Servers list.
 
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 ## 📞 Support
 
-For issues:
-1. Run `./monitor.sh [PUBLIC_IP]` for health checks
-2. SSH to server and run `./troubleshoot.sh` for detailed diagnostics
-3. Check CloudFormation events in AWS Console
-4. Review container logs with `docker logs [container-name]`
+For issues and support:
+1. **First**: Run `./diagnostics.sh` for comprehensive health checks
+2. **Check**: [Issues tab](https://github.com/kiwiscanfly/minecraft-ec2/issues) for known problems
+3. **Create**: A new issue with diagnostic output if your problem isn't already reported
+4. **Debug**: SSH to server and review container logs with `docker logs [container-name]`
+
+When reporting issues, please include:
+- Output from `./diagnostics.sh`
+- Your deployment region and instance type
+- Steps to reproduce the problem
+- Any error messages from CloudFormation or container logs
