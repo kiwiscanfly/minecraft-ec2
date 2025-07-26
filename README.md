@@ -1,5 +1,7 @@
 # Minecraft Paper Server with BedrockConnect on AWS EC2
 
+⚠️ **Work In Progress** - Nintendo Switch connectivity is not yet fully functional.
+
 Complete infrastructure setup for running a Minecraft Paper server with BedrockConnect support, enabling Nintendo Switch and other Bedrock clients to connect to Java Edition servers.
 
 ## 🚀 Quick Start
@@ -9,9 +11,9 @@ Complete infrastructure setup for running a Minecraft Paper server with BedrockC
    ./deploy.sh
    ```
 
-2. **Monitor server health:**
+2. **Check server status:**
    ```bash
-   ./monitor.sh [PUBLIC_IP]
+   ./diagnostics.sh [PUBLIC_IP]
    ```
 
 3. **Destroy all resources:**
@@ -19,25 +21,29 @@ Complete infrastructure setup for running a Minecraft Paper server with BedrockC
    ./destroy.sh
    ```
 
+## 🚨 Current Status
+
+- ✅ Infrastructure deploys successfully
+- ✅ All Docker containers start
+- ✅ Java Edition connections work
+- ❌ Nintendo Switch connections via BedrockConnect (debugging in progress)
+- ✅ Automated backups configured
+- ✅ Monitoring and diagnostics functional
+
 ## 📁 Project Structure
 
 ```
 minecraft-ec2/
 ├── minecraft-bedrock-server.yaml    # CloudFormation template
-├── docker-compose.yml               # Docker services configuration
+├── setup.sh                         # Server setup script (idempotent)
 ├── deploy.sh                        # Deployment script
 ├── destroy.sh                       # Resource cleanup script
-├── monitor.sh                       # Health monitoring script
-├── troubleshoot.sh                  # Troubleshooting script (run on EC2)
-├── config/
-│   ├── dns/                         # BIND9 DNS configuration
-│   │   ├── named.conf.options
-│   │   ├── named.conf.local
-│   │   └── zones/db.minecraft
-│   ├── bedrock-connect/
-│   │   └── serverlist.json          # BedrockConnect server list
-│   └── geyser/
-│       └── config.yml               # Geyser plugin configuration
+├── diagnostics.sh                   # Comprehensive diagnostics
+├── update-dns.sh                    # DNS configuration updater
+├── watch-dns.sh                     # Real-time DNS monitoring
+├── backup-world.sh                  # Manual backup script
+├── restore-world.sh                 # Backup restoration script
+├── setup-auto-backup.sh             # Automated backup configuration
 └── spec.md                          # Detailed specification
 ```
 
@@ -124,11 +130,14 @@ aws cloudformation describe-stacks --stack-name minecraft-sydney --region ap-sou
 
 ### Monitoring
 ```bash
-# Check server health from your local machine
-./monitor.sh 12.34.56.78
+# Run comprehensive diagnostics from your local machine
+./diagnostics.sh 12.34.56.78
 
-# Run troubleshooting ON the server (after SSH)
-./troubleshoot.sh
+# Watch DNS queries in real-time
+./watch-dns.sh 12.34.56.78
+
+# Update DNS configuration if needed
+./update-dns.sh 12.34.56.78
 ```
 
 ### Backup Management (via SSH)
@@ -183,21 +192,28 @@ sudo tail /var/log/cron
 
 ## 🛠️ Troubleshooting
 
+### Known Issues
+
+1. **Nintendo Switch can't connect (WIP)**
+   - BedrockConnect shows transfer but connection doesn't reach Minecraft server
+   - Currently debugging Geyser/BedrockConnect communication
+   - Temporary workaround: None yet
+
 ### Common Issues
 
-1. **Nintendo Switch can't connect**
-   - Verify DNS settings are correct
-   - Restart console after DNS changes
-   - Try different Featured Servers
-
-2. **Server not responding**
+1. **Server not responding**
+   - Run `./diagnostics.sh [PUBLIC_IP]` for comprehensive check
    - Wait 5-10 minutes for initial setup
    - Check container logs: `docker logs minecraft-paper`
-   - Verify security groups allow required ports
+
+2. **Setup script fails**
+   - Ensure you're running with sudo: `sudo ./setup.sh`
+   - Check if services are already running
+   - Script is idempotent - safe to rerun
 
 3. **DNS resolution issues**
-   - Test with: `nslookup mco.lbsg.net [PUBLIC_IP]`
-   - Should return: `172.20.0.20`
+   - Use `./diagnostics.sh` to check DNS functionality
+   - Verify security groups allow UDP/TCP port 53
 
 ### Performance Tuning
 

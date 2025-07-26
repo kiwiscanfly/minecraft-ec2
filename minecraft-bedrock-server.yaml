@@ -122,52 +122,72 @@ Resources:
       GroupDescription: 'Security group for Minecraft server'
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        # SSH Access
+        # SSH Access - Restricted to specific IP
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: !Ref SSHLocation
-          Description: 'SSH access'
-        # DNS (TCP)
+          Description: 'SSH access from trusted IP only'
+        # DNS (TCP) - Required for BedrockConnect to redirect Nintendo Switch
         - IpProtocol: tcp
           FromPort: 53
           ToPort: 53
           CidrIp: 0.0.0.0/0
-          Description: 'DNS TCP'
-        # DNS (UDP)
+          Description: 'DNS TCP - BedrockConnect for Nintendo Switch'
+        # DNS (UDP) - Required for BedrockConnect to redirect Nintendo Switch
         - IpProtocol: udp
           FromPort: 53
           ToPort: 53
           CidrIp: 0.0.0.0/0
-          Description: 'DNS UDP'
+          Description: 'DNS UDP - BedrockConnect for Nintendo Switch'
         # Minecraft Java Edition
         - IpProtocol: tcp
           FromPort: 25565
           ToPort: 25565
           CidrIp: 0.0.0.0/0
           Description: 'Minecraft Java Edition'
-        # Minecraft Bedrock Edition (TCP)
-        - IpProtocol: tcp
-          FromPort: 19132
-          ToPort: 19132
-          CidrIp: 0.0.0.0/0
-          Description: 'Minecraft Bedrock TCP'
-        # Minecraft Bedrock Edition (UDP)
+        # Minecraft Bedrock Edition (UDP) - Combined port range
         - IpProtocol: udp
           FromPort: 19132
           ToPort: 19133
           CidrIp: 0.0.0.0/0
-          Description: 'Minecraft Bedrock UDP'
-        # Geyser Bedrock Port (UDP)
-        - IpProtocol: udp
-          FromPort: 19133
-          ToPort: 19133
-          CidrIp: 0.0.0.0/0
-          Description: 'Geyser Bedrock UDP'
+          Description: 'Minecraft Bedrock/Geyser UDP'
       SecurityGroupEgress:
-        - IpProtocol: -1
+        # DNS resolution
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
           CidrIp: 0.0.0.0/0
-          Description: 'Allow all outbound traffic'
+          Description: 'DNS resolution TCP'
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+          Description: 'DNS resolution UDP'
+        # HTTP for package downloads
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: 'HTTP for package downloads'
+        # HTTPS for secure downloads
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: 'HTTPS for secure downloads'
+        # NTP for time sync
+        - IpProtocol: udp
+          FromPort: 123
+          ToPort: 123
+          CidrIp: 0.0.0.0/0
+          Description: 'NTP time synchronization'
+        # Minecraft server list ping
+        - IpProtocol: tcp
+          FromPort: 25565
+          ToPort: 25565
+          CidrIp: 0.0.0.0/0
+          Description: 'Minecraft server list communication'
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-Minecraft-SG'
@@ -266,7 +286,80 @@ Resources:
           #!/bin/bash -xe
           
           # Install basic dependencies
-          dnf install -y aws-cfn-bootstrap
+          dnf install -y aws-cfn-bootstrap amazon-cloudwatch-agent
+          
+          # Configure CloudWatch agent
+          cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'EOF'
+          {
+            "agent": {
+              "metrics_collection_interval": 60,
+              "run_as_user": "cwagent"
+            },
+            "metrics": {
+              "namespace": "MinecraftServer",
+              "metrics_collected": {
+                "cpu": {
+                  "measurement": [
+                    {"name": "cpu_usage_idle", "rename": "CPU_USAGE_IDLE", "unit": "Percent"},
+                    {"name": "cpu_usage_iowait", "rename": "CPU_USAGE_IOWAIT", "unit": "Percent"},
+                    {"name": "cpu_usage_active", "rename": "CPU_USAGE_ACTIVE", "unit": "Percent"}
+                  ],
+                  "totalcpu": false,
+                  "metrics_collection_interval": 60
+                },
+                "disk": {
+                  "measurement": [
+                    {"name": "used_percent", "rename": "DISK_USED_PERCENT", "unit": "Percent"},
+                    {"name": "free", "rename": "DISK_FREE", "unit": "Gigabytes"}
+                  ],
+                  "metrics_collection_interval": 60,
+                  "resources": ["*"]
+                },
+                "mem": {
+                  "measurement": [
+                    {"name": "mem_used_percent", "rename": "MEM_USED_PERCENT", "unit": "Percent"},
+                    {"name": "mem_available", "rename": "MEM_AVAILABLE", "unit": "Megabytes"}
+                  ],
+                  "metrics_collection_interval": 60
+                },
+                "netstat": {
+                  "measurement": [
+                    {"name": "tcp_established", "rename": "TCP_ESTABLISHED", "unit": "Count"},
+                    {"name": "tcp_time_wait", "rename": "TCP_TIME_WAIT", "unit": "Count"}
+                  ],
+                  "metrics_collection_interval": 60
+                }
+              }
+            },
+            "logs": {
+              "logs_collected": {
+                "files": {
+                  "collect_list": [
+                    {
+                      "file_path": "/opt/minecraft/logs/latest.log",
+                      "log_group_name": "/aws/ec2/minecraft",
+                      "log_stream_name": "{instance_id}/minecraft-server",
+                      "retention_in_days": 7
+                    },
+                    {
+                      "file_path": "/var/log/messages",
+                      "log_group_name": "/aws/ec2/minecraft",
+                      "log_stream_name": "{instance_id}/system",
+                      "retention_in_days": 7
+                    }
+                  ]
+                }
+              }
+            }
+          }
+          EOF
+          
+          # Start CloudWatch agent
+          /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+            -a fetch-config \
+            -m ec2 \
+            -s \
+            -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
           
           # Signal that basic infrastructure is ready
           cfn-signal -e $? --stack ${AWS::StackName} --resource MinecraftInstance --region ${AWS::Region}
@@ -292,6 +385,181 @@ Resources:
     Properties:
       InstanceId: !Ref MinecraftInstance
       EIP: !Ref ElasticIP
+
+  # CloudWatch Log Group
+  MinecraftLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ec2/minecraft
+      RetentionInDays: 7
+
+  # CloudWatch Dashboard
+  MinecraftDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${AWS::StackName}-Minecraft-Dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "MinecraftServer", "CPU_USAGE_ACTIVE", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "CPU Usage",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "MinecraftServer", "MEM_USED_PERCENT", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Memory Usage",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "MinecraftServer", "DISK_USED_PERCENT", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Disk Usage",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "MinecraftServer", "TCP_ESTABLISHED", { "stat": "Average" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Active Connections",
+                "period": 300
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 12,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/ec2/minecraft' | fields @timestamp, @message | filter @stream like 'minecraft-server' | sort @timestamp desc | limit 20",
+                "region": "${AWS::Region}",
+                "title": "Recent Minecraft Server Logs",
+                "queryType": "Logs"
+              }
+            }
+          ]
+        }
+
+  # SNS Topic for Alerts
+  MinecraftAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${AWS::StackName}-Minecraft-Alerts'
+      DisplayName: 'Minecraft Server Alerts'
+
+  # CloudWatch Alarms
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-HighCPU'
+      AlarmDescription: 'Minecraft server CPU usage is too high'
+      MetricName: CPU_USAGE_ACTIVE
+      Namespace: MinecraftServer
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref MinecraftAlertTopic
+      TreatMissingData: notBreaching
+
+  HighMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-HighMemory'
+      AlarmDescription: 'Minecraft server memory usage is too high'
+      MetricName: MEM_USED_PERCENT
+      Namespace: MinecraftServer
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref MinecraftAlertTopic
+      TreatMissingData: notBreaching
+
+  HighDiskUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-HighDiskUsage'
+      AlarmDescription: 'Minecraft server disk usage is too high'
+      MetricName: DISK_USED_PERCENT
+      Namespace: MinecraftServer
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref MinecraftAlertTopic
+      TreatMissingData: notBreaching
+
+  # Instance Status Check Alarm
+  InstanceStatusCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-InstanceStatusCheck'
+      AlarmDescription: 'Instance has failed status checks'
+      MetricName: StatusCheckFailed
+      Namespace: AWS/EC2
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref MinecraftInstance
+      AlarmActions:
+        - !Ref MinecraftAlertTopic
+      TreatMissingData: breaching
 
 Outputs:
   InstanceId:
@@ -321,3 +589,11 @@ Outputs:
   BackupBucket:
     Description: 'S3 bucket for Minecraft world backups'
     Value: !Ref MinecraftBackupBucket
+
+  CloudWatchDashboard:
+    Description: 'CloudWatch Dashboard URL'
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${AWS::StackName}-Minecraft-Dashboard'
+
+  SNSAlertTopic:
+    Description: 'SNS Topic for server alerts (subscribe to receive notifications)'
+    Value: !Ref MinecraftAlertTopic

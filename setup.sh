@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
     ports:
       - "25565:25565"
-      - "19133:19132"
+      - "19133:19132/udp"
     environment:
       EULA: "TRUE"
       TYPE: "PAPER"
